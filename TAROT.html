@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hong Tarot - Dynamic Spread</title>
+    <style>
+        body {
+            font-family: 'Sarabun', sans-serif;
+            background-color: #1a1a2e;
+            color: #fff;
+            text-align: center;
+            padding: 10px;
+            margin: 0;
+        }
+
+        h1 { color: #e94560; margin-bottom: 5px; font-size: 1.5em; }
+        p { color: #a0a0a0; font-size: 0.8em; margin-bottom: 15px; }
+
+        /* 控制区域 */
+        .controls {
+            background: #16213e;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        button {
+            background-color: #e94560;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            font-size: 16px;
+            cursor: pointer;
+            border-radius: 5px;
+            margin: 5px;
+        }
+        button:hover { background-color: #c0354c; }
+        
+        button.reset-btn { background-color: #0f3460; border: 1px solid #e94560; width: 100%; margin-bottom: 15px;}
+
+        input[type="number"] {
+            padding: 8px;
+            width: 40px; /* 调整宽度以适应 10 个输入框 */
+            text-align: center;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            font-size: 16px;
+            margin: 2px;
+        }
+
+        select {
+            padding: 8px;
+            border-radius: 5px;
+            font-size: 16px;
+            margin-bottom: 10px;
+            width: 100%;
+            text-align: center;
+        }
+
+        /* 牌的样式 */
+        .card {
+            width: 70px;
+            height: 110px;
+            /* 牌背样式 */
+            background-color: #0f3460;
+            border: 2px solid #533483;
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            font-size: 11px;
+            color: transparent;
+            transition: transform 0.3s;
+            position: relative;
+            background-image: linear-gradient(135deg, #0f3460 25%, #16213e 25%, #16213e 50%, #0f3460 50%, #0f3460 75%, #16213e 75%, #16213e 100%);
+            background-size: 15px 15px;
+        }
+
+        .card img {
+             /* 图片样式 */
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            border-radius: 4px; /* 让图片边缘和卡片一致 */
+        }
+        
+        .card:hover { transform: translateY(-3px); border-color: #e94560; }
+
+        .card.flipped {
+            /* 翻开时清除牌背样式 */
+            background-image: none !important;
+            background-color: transparent !important;
+            /* 移除 3D 旋转，仅在 JS 中控制 90 度旋转 */
+            transform: none; 
+            font-weight: bold;
+            padding: 0; /* 确保图片完整显示 */
+        }
+        
+        /* 结果展示区布局 - Grid System */
+        .result-area {
+            margin-top: 15px;
+            padding: 15px;
+            background: #533483;
+            border-radius: 10px;
+            display: none; 
+        }
+        
+        /* 4-Card Spread Layout */
+        .spread-layout {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            grid-template-rows: auto auto;
+            gap: 15px;
+            justify-items: center;
+            margin-top: 10px;
+        }
+        
+        /* 4 张牌阵的布局 */
+        .pos-4 { grid-column: 2; grid-row: 1; }
+        .pos-2 { grid-column: 1; grid-row: 2; }
+        .pos-1 { grid-column: 2; grid-row: 2; }
+        .pos-3 { grid-column: 3; grid-row: 2; }
+
+
+/* 10 Card Celtic Cross 布局 (根据您的要求重新排列) */
+.spread-layout.ten-card {
+    grid-template-columns: 1fr 1fr 1fr 1fr; /* 4 列 */
+    grid-template-rows: repeat(4, auto);   /* 4 行 */
+    gap: 10px;
+    justify-content: center; 
+}
+
+/* --- 中心十字和环绕牌 (1, 2, 3, 4, 5, 6) --- */
+
+/* 核心：1 (您自己) 和 2 (挑战/覆盖) - 第 2 列，第 3 行 */
+.spread-layout.ten-card .pos-1 { 
+    grid-column: 2; 
+    grid-row: 3; 
+    z-index: 1; 
+} 
+.spread-layout.ten-card .pos-2 { 
+    grid-column: 2; 
+    grid-row: 3; 
+    z-index: 2; 
+} 
+
+/* 3 (意识): 第 2 列，第 1 行 */
+.spread-layout.ten-card .pos-3 { grid-column: 2; grid-row: 1; } 
+
+/* 4 (基础): 第 2 列，第 4 行 */
+.spread-layout.ten-card .pos-4 { grid-column: 2; grid-row: 4; } 
+
+/* 5 (过去): 第 3 列，第 3 行 */
+.spread-layout.ten-card .pos-5 { grid-column: 3; grid-row: 3; } 
+
+/* 6 (未来): 第 1 列，第 3 行 */
+.spread-layout.ten-card .pos-6 { grid-column: 1; grid-row: 3; } 
+
+
+/* --- 外部权杖 (7, 8, 9, 10) - 第 4 列 (从上到下 10, 9, 8, 7) --- */
+
+.spread-layout.ten-card .pos-10 { grid-column: 4; grid-row: 1; } /* 10: 结果 (顶部) */
+.spread-layout.ten-card .pos-9 { grid-column: 4; grid-row: 2; } /* 9: 希望/恐惧 (中上) */
+.spread-layout.ten-card .pos-8 { grid-column: 4; grid-row: 3; } /* 8: 环境/他人影响 (中下) */
+.spread-layout.ten-card .pos-7 { grid-column: 4; grid-row: 4; } /* 7: 自己/基础 (底部) */
+
+
+/* 调整卡片大小以适应 10 张牌布局 */
+.spread-layout.ten-card .card {
+    width: 55px;
+    height: 85px;
+}
+
+        /* 标签样式 - 仅保留数字，居中对齐，使用默认定位 */
+        .card-label {
+            color: #ccc;
+            font-size: 10px;
+            margin-bottom: 3px;
+            display: block;
+            position: static; 
+            text-align: center; 
+        }
+
+        /* 恢复 pos-1 和 pos-2 的标签样式为默认 */
+        .spread-layout.ten-card .pos-1 .card-label,
+        .spread-layout.ten-card .pos-2 .card-label {
+            top: auto; 
+            left: auto; 
+            right: auto; 
+            bottom: auto; 
+            text-align: center;
+        }
+
+
+        /* 下方的整个牌堆 */
+        .deck-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 5px;
+            margin-top: 20px;
+            border-top: 1px solid #333;
+            padding-top: 15px;
+        }
+        
+        .deck-container .card {
+             width: 40px; 
+             height: 60px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>🔮 โปรแกรมสุ่มไพ่ (Hong Tarot)</h1>
+
+    <div class="controls">
+        <button onclick="shuffleDeck(true)" class="reset-btn">🔄 สับไพ่ใหม่ (Reshuffle)</button>
+        
+        <label style="display:block; text-align:left; color:#e94560; margin-bottom:5px;">1. 选择布局 (Select Spread):</label>
+        <select id="spreadType" onchange="resetCards()">
+            <option value="four">四牌阵 (4-Card Spread)</option>
+            <option value="ten">凯尔特十字 (Celtic Cross - 10 Cards)</option>
+        </select>
+
+        <label style="display:block; text-align:left; color:#e94560; margin-bottom:5px;">2. 选择方向 (Select Side):</label>
+        <select id="direction">
+            <option value="left">👈 จากซ้ายไปขวา (Left to Right)</option>
+            <option value="right">👉 จากขวาไปซ้าย (Right to Left)</option>
+        </select>
+
+        <label style="display:block; text-align:left; color:#e94560; margin-bottom:5px;">3. 输入数字 (Enter Numbers):</label>
+        <div id="numberInputs">
+            </div>
+        <br>
+        <button onclick="pickCards()" style="width:100%; background:#e94560;">✨ เปิดไพ่ (Open Cards)</button>    
+    </div>
+
+    <div id="resultDisplay" class="result-area">
+        <h3>ผลลัพธ์ (Result)</h3>
+        <div class="spread-layout">
+            </div>
+    </div>
+
+    <div style="margin-top:20px; color:#666; font-size:12px;">
+        👇 รายการไพ่ทั้งหมด (All Cards in Deck) 👇
+    </div>
+    
+    <div class="deck-container" id="deckBoard">
+    </div>
+
+<script>
+// --- 牌面数据 (对象数组) ---
+const majorArcana = [
+    { name: "0. The Fool (愚者)", file: "00-TheFool" },
+    { name: "1. The Magician (魔术师)", file: "01-TheMagician" },
+    { name: "2. The High Priestess (女祭司)", file: "02-TheHigPriestess" },
+    { name: "3. The Empress (女皇)", file: "03-TheEmpress" }, 
+    { name: "4. The Emperor (皇帝)", file: "04-TheEmperor" }, 
+    { name: "5. The Hierophant (教皇)", file: "05-TheHierophant" }, 
+    { name: "6. The Lovers (คู่รัก)", file: "06-TheLovers" }, 
+    { name: "7. The Chariot (战车)", file: "07-TheChariot" }, 
+    { name: "8. Strength (力量)", file: "08-StrengtH" }, 
+    { name: "9. The Hermit (隐士)", file: "09-TheHerMit" }, 
+    { name: "10. Wheel of Fortune (命运之轮)", file: "10-Wheeloffortune" }, 
+    { name: "11. Justice (正义)", file: "11-Justice" }, 
+    { name: "12. The Hanged Man (倒吊人)", file: "12-TheHanGedMan" }, 
+    { name: "13. Death (死亡)", file: "13-Death" }, 
+    { name: "14. Temperance (节制)", file: "14-Temperance" }, 
+    { name: "15. The Devil (恶魔)", file: "15-TheDevil" }, 
+    { name: "16. The Tower (高塔)", file: "16-TheTower" }, 
+    { name: "17. The Star (星星)", file: "17-TheStar" }, 
+    { name: "18. The Moon (月亮)", file: "18-TheMoon" }, 
+    { name: "19. The Sun (太阳)", file: "19-TheSun" }, 
+    { name: "20. Judgement (审判)", file: "20-Judgement" }, 
+    { name: "21. The World (世界)", file: "21-TheWorld" }
+];
+
+const tarotData = [...majorArcana];
+
+const suits = ["Wands", "Cups", "Swords", "Pentacles"];
+const suitsThai = ["ไม้เท้า", "ถ้วย", "ดาบ", "เหรียญ"];
+
+for (let s = 0; s < suits.length; s++) {
+    const suitName = suits[s];
+    const suitThai = suitsThai[s];
+    for (let i = 1; i <= 14; i++) {
+        let name = i;
+        let fileIndex = i.toString().padStart(2, '0');
+        
+        if(i==1) name = "Ace";
+        if(i==11) name = "Page";
+        if(i==12) name = "Knight";
+        if(i==13) name = "Queen";
+        if(i==14) name = "King";
+        
+        tarotData.push({ 
+            name: `${name} of ${suitName} (${suitThai})`, 
+            file: `${suitName}${fileIndex}` 
+        });
+    }
+}
+
+let currentDeck = [];
+
+window.onload = function() {
+    // 页面加载时：洗牌 (不弹窗)，并初始化输入框为 4 张牌模式
+    shuffleDeck(false); 
+    updateNumberInputs(document.getElementById('spreadType').value); 
+};
+
+// -----------------------------------------------------
+// ⭐ 关键修正区域：将路径调整为只引用文件名
+// -----------------------------------------------------
+function getImagePath(fileName) {
+    // 假设所有图片文件 (如 00-TheFool.jpg) 都与 TAROT.html 文件位于同一文件夹中
+    return `${fileName}.jpg`;
+}
+// -----------------------------------------------------
+
+
+// --- 核心函数：在指定元素中显示图片或回退文本 ---
+function updateCardContent(element, cardObject) {
+    let imageUrl = getImagePath(cardObject.file);
+    
+    // Fallback Text (用于在图片加载失败时显示)
+    const fallbackText = cardObject.name.replace(/\s\(.*?\)/g, '').trim(); 
+    
+    // 移除潜在的旧 transform/z-index，由 pickCards 函数专门设置
+    element.style.transform = ''; 
+    element.style.zIndex = '';
+    
+    element.innerHTML = `<img 
+        src="${imageUrl}" 
+        alt="${fallbackText}" 
+        style="width:100%; height:100%; border-radius: 4px; object-fit: contain;"
+        onerror="this.parentNode.innerHTML = '${fallbackText}'; 
+                 this.parentNode.style.backgroundColor='#fff'; 
+                 this.parentNode.style.color='#000';
+                 this.parentNode.style.fontSize='10px';
+                 this.parentNode.classList.remove('flipped');"
+    >`;
+    
+    // 设置为翻开状态
+    element.style.backgroundColor = 'transparent';
+    element.style.color = 'transparent'; 
+    element.classList.add('flipped');
+}
+
+// --- 洗牌函数 ---
+function shuffleDeck(showAlert = true) {
+    currentDeck = [...tarotData];
+    // Fisher-Yates Shuffle
+    for (let i = currentDeck.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [currentDeck[i], currentDeck[j]] = [currentDeck[j], currentDeck[i]];
+    }
+    renderDeck();
+    document.getElementById('resultDisplay').style.display = 'none';
+    if(showAlert) {
+        alert("สับไพ่เรียบร้อย (Deck Reshuffled)");
+    }
+}
+
+// --- 渲染牌桌 (手动选牌区域) ---
+function renderDeck() {
+    const board = document.getElementById('deckBoard');
+    board.innerHTML = ''; 
+    currentDeck.forEach((cardObject, index) => {
+        let cardDiv = document.createElement('div');
+        cardDiv.className = 'card';
+        cardDiv.title = `Card #${index + 1} (${cardObject.name})`;
+        
+        cardDiv.onclick = function() {
+            if (!this.classList.contains('flipped')) {
+                updateCardContent(this, cardObject); 
+            }
+        };
+        cardDiv.id = `deck-card-${index}`;
+        
+        board.appendChild(cardDiv);
+    });
+}
+
+// --- 动态生成输入框的函数 ---
+function updateNumberInputs(spreadType) {
+    const inputContainer = document.getElementById('numberInputs');
+    inputContainer.innerHTML = ''; // 清空容器
+    
+    const count = spreadType === 'ten' ? 10 : 4;
+    
+    let inputsHTML = '';
+    
+    if (count === 10) {
+        // 10 张牌阵的布局 (每行 5 个)
+        inputsHTML += '<div style="display:flex; justify-content:space-around; margin-bottom: 5px;">';
+        for (let i = 1; i <= 5; i++) {
+            inputsHTML += `<div><small>#${i}</small><br><input type="number" id="num${i}" placeholder="${i}" min="1" max="78" value=""></div>`;
+        }
+        inputsHTML += '</div>';
+        inputsHTML += '<div style="display:flex; justify-content:space-around;">';
+        for (let i = 6; i <= 10; i++) {
+            inputsHTML += `<div><small>#${i}</small><br><input type="number" id="num${i}" placeholder="${i}" min="1" max="78" value=""></div>`;
+        }
+        inputsHTML += '</div>';
+
+    } else {
+    // 4 张牌阵的布局 (每行 4 个)
+        inputsHTML += '<div style="display:flex; justify-content:space-between;">';
+        for (let i = 1; i <= 4; i++) {
+            inputsHTML += `<div><small>#${i}</small><br><input type="number" id="num${i}" placeholder="${i}" min="1" max="78" value=""></div>`;
+        }
+        inputsHTML += '</div>';
+    }
+    
+    inputContainer.innerHTML = inputsHTML;
+}
+
+
+// --- 重置函数 (当切换牌阵时使用) ---
+function resetCards() {
+    const spreadType = document.getElementById('spreadType').value;
+    
+    // 关键修正：根据牌阵类型更新输入框
+    updateNumberInputs(spreadType); 
+    
+    shuffleDeck(false); // 不显示提示
+    document.getElementById('resultDisplay').style.display = 'none';
+}
+
+// --- 总控函数 (根据下拉菜单选择执行哪个牌阵) ---
+function pickCards() {
+    const spreadType = document.getElementById('spreadType').value;
+
+    if (spreadType === 'four') {
+        pickFourNumbersSpread();
+    } else if (spreadType === 'ten') {
+        pickTenNumbersSpread();
+    }
+}
+
+// -----------------------------------------------------
+// 10 张牌阵：凯尔特十字 (Celtic Cross) - 使用 10 个独立输入
+// -----------------------------------------------------
+
+function pickTenNumbersSpread() {
+    let inputs = [];
+    let direction = document.getElementById('direction').value;
+    
+    // 1. 循环读取 10 个独立的数字
+    for(let i = 1; i <= 10; i++) {
+        const inputElement = document.getElementById(`num${i}`);
+        // 确保元素存在且值为数字
+        const num = parseInt(inputElement ? inputElement.value : NaN); 
+        
+        if(isNaN(num) || num < 1 || num > 78) {
+            alert(`กรุณาใส่ตัวเลขช่องที่ ${i} (Please enter a valid number between 1 and 78 for slot #${i})`);
+            return;
+        }
+        inputs.push(num);
+    }
+    
+    let finalIndices = [];
+
+    // 计算 10 个独立的索引
+    inputs.forEach(num => {
+        let safeNum = (num - 1) % 78;
+
+        let idx = 0;
+        if (direction === 'left') {
+            idx = safeNum; 
+        } else {
+            idx = 77 - safeNum;
+        }
+        finalIndices.push(idx);
+    });
+
+    // 2. 渲染布局和结果
+    const resultDisplay = document.getElementById('resultDisplay');
+    resultDisplay.style.display = 'block';
+    const spreadLayout = resultDisplay.querySelector('.spread-layout');
+    spreadLayout.className = 'spread-layout ten-card'; // 切换 CSS 类
+
+    let layoutHTML = '';
+    // 关键修正：标签数组现在只包含数字
+    const labels = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]; 
+
+    for (let i = 0; i < 10; i++) {
+        // 创建 10 个牌位，标签只显示数字 (i + 1)
+        layoutHTML += `
+            <div class="pos-${i + 1}">
+                <span class="card-label">${labels[i]}</span> 
+                <div id="card-res-${i + 1}" class="card flipped"></div>
+            </div>
+        `;
+    }
+    spreadLayout.innerHTML = layoutHTML;
+
+    // 3. 填充卡片并应用旋转/层级
+    for (let i = 0; i < 10; i++) {
+        const cardElement = document.getElementById(`card-res-${i + 1}`);
+        updateCardContent(cardElement, currentDeck[finalIndices[i]]);
+        
+        // 关键修正：旋转第 2 张牌 (挑战/覆盖) 和设置层级
+        if (i === 1) { // 索引 1 对应位置 2
+             cardElement.style.transform = 'rotate(90deg)'; // 旋转 90 度
+             cardElement.style.zIndex = '2'; // 确保在 pos-1 之上
+        } else if (i === 0) { // 索引 0 对应位置 1
+             cardElement.style.zIndex = '1'; // 确保 pos-1 在底层
+        } else {
+             // 确保其他牌没有被 rotation 影响
+             cardElement.style.transform = 'none'; 
+             cardElement.style.zIndex = 'auto';
+        }
+    }
+}
+
+// -----------------------------------------------------
+// 4 张牌阵 (保持原有的逻辑和输入)
+// -----------------------------------------------------
+
+function pickFourNumbersSpread() {
+    // 1. 读取 4 个数字
+    let n1 = parseInt(document.getElementById('num1').value);
+    let n2 = parseInt(document.getElementById('num2').value);
+    let n3 = parseInt(document.getElementById('num3').value);
+    let n4 = parseInt(document.getElementById('num4').value);
+    let direction = document.getElementById('direction').value;
+    
+    if(!n1 || !n2 || !n3 || !n4) {
+        alert("กรุณาใส่ตัวเลขให้ครบ 4 ช่อง (Please enter all 4 numbers)");
+        return;
+    }
+
+    // 2. 确保使用正确的 4 张牌布局 (并重建 DOM)
+    const resultDisplay = document.getElementById('resultDisplay');
+    const spreadLayout = resultDisplay.querySelector('.spread-layout'); 
+    spreadLayout.className = 'spread-layout'; // 默认 4 张牌布局
+    
+    spreadLayout.innerHTML = `
+        <div class="pos-4">
+            <span class="card-label">4</span>
+            <div id="card-res-4" class="card flipped" style="background:#fff; color:#000;">?</div>
+        </div>
+        
+        <div class="pos-2">
+            <span class="card-label">2</span>
+            <div id="card-res-2" class="card flipped" style="background:#fff; color:#000;">?</div>
+        </div>
+
+        <div class="pos-1">
+            <span class="card-label">1</span>
+            <div id="card-res-1" class="card flipped" style="background:#fff; color:#000;">?</div>
+        </div>
+
+        <div class="pos-3">
+            <span class="card-label">3</span>
+            <div id="card-res-3" class="card flipped" style="background:#fff; color:#000;">?</div>
+        </div>
+    `;
+
+    // 3. 计算索引
+    let inputs = [n1, n2, n3, n4];
+    let finalIndices = [];
+
+    inputs.forEach(num => {
+        let safeNum = (num - 1) % 78;
+        let idx = 0;
+        if (direction === 'left') {
+            idx = safeNum;
+        } else {
+            idx = 77 - safeNum; 
+        }
+        finalIndices.push(idx);
+    });
+
+    document.getElementById('resultDisplay').style.display = 'block';
+
+    // 4. 填充卡片
+    updateCardContent(document.getElementById('card-res-1'), currentDeck[finalIndices[0]]);
+    updateCardContent(document.getElementById('card-res-2'), currentDeck[finalIndices[1]]);
+    updateCardContent(document.getElementById('card-res-3'), currentDeck[finalIndices[2]]);
+    updateCardContent(document.getElementById('card-res-4'), currentDeck[finalIndices[3]]);
+}
+</script>
+
+</body>
+</html>
