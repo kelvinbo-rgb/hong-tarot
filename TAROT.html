@@ -311,7 +311,7 @@ let currentDeck = [];
 let preloadedImages = []; // 用于存储预加载的 Image 对象
 
 window.onload = function() {
-    // ⭐ 修正 1: 在页面加载时，立即开始预加载所有图片
+    // 立即开始预加载所有图片
     preloadImages();
     
     // 页面加载时：洗牌 (不弹窗)，并初始化输入框为 4 张牌模式
@@ -319,15 +319,13 @@ window.onload = function() {
     updateNumberInputs(document.getElementById('spreadType').value); 
 };
 
-// --- 辅助函数：生成图片路径 ---
+// --- 辅助函数：生成图片路径 (基于所有文件在同一目录) ---
 function getImagePath(fileName) {
-    // 由于您已将所有图片和HTML放在同一目录，这里使用相对路径
-    // 如果您使用的是 GitHub Pages，路径应该是正确的
     return `${fileName}.jpg`;
 }
 
 
-// --- ⭐ 修正 2: 新增图片预加载函数 ---
+// --- 新增图片预加载函数 ---
 function preloadImages() {
     tarotData.forEach(card => {
         let img = new Image();
@@ -339,43 +337,58 @@ function preloadImages() {
 }
 
 
-// --- 核心函数：在指定元素中显示图片或回退文本 ---
-function updateCardContent(element, cardObject) {
-    let imageUrl = getImagePath(cardObject.file);
-    
-    // Fallback Text (用于在图片加载失败时显示)
+// --- 核心函数：在指定元素中显示图片或回退文本 (新增重试逻辑) ---
+function updateCardContent(element, cardObject, attempt = 1) {
     const fallbackText = cardObject.name.replace(/\s\(.*?\)/g, '').trim(); 
     
-    // 移除潜在的旧 transform/z-index，由 pickCards 函数专门设置
     element.style.transform = ''; 
     element.style.zIndex = '';
+    element.innerHTML = ''; // 清空内容，准备加载图片
     
-    // ⭐ 修正 3: 优化 onerror 处理器，确保在加载失败时至少显示文字
-    element.innerHTML = `<img 
-        src="${imageUrl}" 
-        alt="${fallbackText}" 
-        style="width:100%; height:100%; border-radius: 4px; object-fit: contain;"
-        onerror="
-                 // 立即显示回退文本
-                 this.parentNode.innerHTML = '${fallbackText}'; 
-                 this.parentNode.style.backgroundColor='#fff'; 
-                 this.parentNode.style.color='#000';
-                 this.parentNode.style.fontSize='10px';
-                 this.parentNode.classList.remove('flipped');
-                 
-                 // 尝试重新加载图片（可选，但可能帮助修复临时网络抖动）
-                 setTimeout(() => {
-                    this.src = '${imageUrl}?' + new Date().getTime(); // 加时间戳强制刷新
-                 }, 500); 
-                 
-                 return true; // 阻止默认的浏览器错误处理
-        "
-    >`;
+    // 创建新的 Image 元素
+    const img = document.createElement('img');
+    img.style.cssText = "width:100%; height:100%; border-radius: 4px; object-fit: contain;";
+    img.alt = fallbackText;
     
-    // 设置为翻开状态
-    element.style.backgroundColor = 'transparent';
-    element.style.color = 'transparent'; 
-    element.classList.add('flipped');
+    let imageUrl = getImagePath(cardObject.file);
+    
+    // 如果是重试，添加时间戳来绕过浏览器缓存
+    if (attempt > 1) {
+        imageUrl += `?retry=${new Date().getTime()}`;
+    }
+
+    // 图片加载失败处理器
+    img.onerror = function() {
+        if (attempt < 3) { // 尝试最多 3 次
+            console.warn(`Card ${cardObject.name} failed to load (Attempt ${attempt}). Retrying...`);
+            // 稍等片刻后重试
+            setTimeout(() => {
+                updateCardContent(element, cardObject, attempt + 1);
+            }, 500);
+        } else {
+            // 3 次尝试后彻底失败，显示回退文本
+            element.innerHTML = fallbackText;
+            element.style.backgroundColor='#fff'; 
+            element.style.color='#000';
+            element.style.fontSize='10px';
+            element.classList.remove('flipped');
+            console.error(`Card ${cardObject.name} failed to load after 3 attempts.`);
+        }
+    };
+
+    // 图片加载成功处理器
+    img.onload = function() {
+        // 成功加载后才插入图片，并应用翻转样式
+        element.innerHTML = ''; 
+        element.appendChild(img);
+        
+        element.style.backgroundColor = 'transparent';
+        element.style.color = 'transparent'; 
+        element.classList.add('flipped');
+    };
+    
+    // 设置 source 开始加载 (触发 onload/onerror)
+    img.src = imageUrl;
 }
 
 // --- 洗牌函数 ---
@@ -404,7 +417,8 @@ function renderDeck() {
         
         cardDiv.onclick = function() {
             if (!this.classList.contains('flipped')) {
-                updateCardContent(this, cardObject); 
+                // 调用带有重试逻辑的函数，从尝试 1 开始
+                updateCardContent(this, cardObject, 1); 
             }
         };
         cardDiv.id = `deck-card-${index}`;
@@ -530,7 +544,8 @@ function pickTenNumbersSpread() {
     // 3. 填充卡片并应用旋转/层级
     for (let i = 0; i < 10; i++) {
         const cardElement = document.getElementById(`card-res-${i + 1}`);
-        updateCardContent(cardElement, currentDeck[finalIndices[i]]);
+        // 上方开牌也调用重试逻辑
+        updateCardContent(cardElement, currentDeck[finalIndices[i]], 1);
         
         // 关键修正：旋转第 2 张牌 (挑战/覆盖) 和设置层级
         if (i === 1) { // 索引 1 对应位置 2
@@ -608,10 +623,10 @@ function pickFourNumbersSpread() {
     document.getElementById('resultDisplay').style.display = 'block';
 
     // 4. 填充卡片
-    updateCardContent(document.getElementById('card-res-1'), currentDeck[finalIndices[0]]);
-    updateCardContent(document.getElementById('card-res-2'), currentDeck[finalIndices[1]]);
-    updateCardContent(document.getElementById('card-res-3'), currentDeck[finalIndices[2]]);
-    updateCardContent(document.getElementById('card-res-4'), currentDeck[finalIndices[3]]);
+    updateCardContent(document.getElementById('card-res-1'), currentDeck[finalIndices[0]], 1);
+    updateCardContent(document.getElementById('card-res-2'), currentDeck[finalIndices[1]], 1);
+    updateCardContent(document.getElementById('card-res-3'), currentDeck[finalIndices[2]], 1);
+    updateCardContent(document.getElementById('card-res-4'), currentDeck[finalIndices[3]], 1);
 }
 </script>
 
