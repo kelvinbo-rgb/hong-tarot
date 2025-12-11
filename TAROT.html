@@ -308,21 +308,35 @@ for (let s = 0; s < suits.length; s++) {
 }
 
 let currentDeck = [];
+let preloadedImages = []; // 用于存储预加载的 Image 对象
 
 window.onload = function() {
+    // ⭐ 修正 1: 在页面加载时，立即开始预加载所有图片
+    preloadImages();
+    
     // 页面加载时：洗牌 (不弹窗)，并初始化输入框为 4 张牌模式
     shuffleDeck(false); 
     updateNumberInputs(document.getElementById('spreadType').value); 
 };
 
-// -----------------------------------------------------
-// ⭐ 关键修正区域：将路径调整为只引用文件名
-// -----------------------------------------------------
+// --- 辅助函数：生成图片路径 ---
 function getImagePath(fileName) {
-    // 假设所有图片文件 (如 00-TheFool.jpg) 都与 TAROT.html 文件位于同一文件夹中
+    // 由于您已将所有图片和HTML放在同一目录，这里使用相对路径
+    // 如果您使用的是 GitHub Pages，路径应该是正确的
     return `${fileName}.jpg`;
 }
-// -----------------------------------------------------
+
+
+// --- ⭐ 修正 2: 新增图片预加载函数 ---
+function preloadImages() {
+    tarotData.forEach(card => {
+        let img = new Image();
+        img.src = getImagePath(card.file);
+        // 将 Image 对象存储起来，防止垃圾回收，确保图片下载完成
+        preloadedImages.push(img); 
+    });
+    console.log("Tarot images loading in background...");
+}
 
 
 // --- 核心函数：在指定元素中显示图片或回退文本 ---
@@ -336,15 +350,26 @@ function updateCardContent(element, cardObject) {
     element.style.transform = ''; 
     element.style.zIndex = '';
     
+    // ⭐ 修正 3: 优化 onerror 处理器，确保在加载失败时至少显示文字
     element.innerHTML = `<img 
         src="${imageUrl}" 
         alt="${fallbackText}" 
         style="width:100%; height:100%; border-radius: 4px; object-fit: contain;"
-        onerror="this.parentNode.innerHTML = '${fallbackText}'; 
+        onerror="
+                 // 立即显示回退文本
+                 this.parentNode.innerHTML = '${fallbackText}'; 
                  this.parentNode.style.backgroundColor='#fff'; 
                  this.parentNode.style.color='#000';
                  this.parentNode.style.fontSize='10px';
-                 this.parentNode.classList.remove('flipped');"
+                 this.parentNode.classList.remove('flipped');
+                 
+                 // 尝试重新加载图片（可选，但可能帮助修复临时网络抖动）
+                 setTimeout(() => {
+                    this.src = '${imageUrl}?' + new Date().getTime(); // 加时间戳强制刷新
+                 }, 500); 
+                 
+                 return true; // 阻止默认的浏览器错误处理
+        "
     >`;
     
     // 设置为翻开状态
